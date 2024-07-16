@@ -130,19 +130,14 @@ class TestProductRoutes(TestCase):
         self.assertEqual(new_product["available"], test_product.available)
         self.assertEqual(new_product["category"], test_product.category.name)
 
-        #
-        # Uncomment this code once READ is implemented
-        #
-
-        # # Check that the location header was correct
-        # response = self.client.get(location)
-        # self.assertEqual(response.status_code, status.HTTP_200_OK)
-        # new_product = response.get_json()
-        # self.assertEqual(new_product["name"], test_product.name)
-        # self.assertEqual(new_product["description"], test_product.description)
-        # self.assertEqual(Decimal(new_product["price"]), test_product.price)
-        # self.assertEqual(new_product["available"], test_product.available)
-        # self.assertEqual(new_product["category"], test_product.category.name)
+        response = self.client.get(location)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        new_product = response.get_json()
+        self.assertEqual(new_product["name"], test_product.name)
+        self.assertEqual(new_product["description"], test_product.description)
+        self.assertEqual(Decimal(new_product["price"]), test_product.price)
+        self.assertEqual(new_product["available"], test_product.available)
+        self.assertEqual(new_product["category"], test_product.category.name)
 
     def test_create_product_with_no_name(self):
         """It should not Create a Product without a name"""
@@ -163,9 +158,85 @@ class TestProductRoutes(TestCase):
         response = self.client.post(BASE_URL, data={}, content_type="plain/text")
         self.assertEqual(response.status_code, status.HTTP_415_UNSUPPORTED_MEDIA_TYPE)
 
-    #
-    # ADD YOUR TEST CASES HERE
-    #
+    def test_get_product(self):
+        """ Test to get a product """
+        test_product = self._create_products(1)[0]
+        response = self.client.get(f'{BASE_URL}/{test_product.id}')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        returned_product = response.get_json()
+        self.assertEqual(returned_product["name"], test_product.name)
+        self.assertEqual(returned_product["description"], test_product.description)
+        self.assertEqual(Decimal(returned_product["price"]), test_product.price)
+        self.assertEqual(returned_product["available"], test_product.available)
+        self.assertEqual(returned_product["category"], test_product.category.name)
+
+    def test_get_product_wrong_id(self):
+        """ Test to get a product with inexistent ID """
+        response = self.client.get(f'{BASE_URL}/999999')
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_update_product(self):
+        """ Test to update a product """
+        test_product = self._create_products(1)[0]
+        test_product.name = "Chupakabra"
+        response = self.client.put(f'{BASE_URL}/{test_product.id}', json=test_product.serialize())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        response = self.client.get(f'{BASE_URL}/{test_product.id}')
+        new_product = response.get_json()
+        self.assertEqual(new_product["name"], "Chupakabra")
+
+    def test_update_product_wrong_id(self):
+        """ Test to update a product with inexistent ID """
+        test_product = self._create_products(1)[0]
+        test_product.name = "Chupakabra"
+        test_product.id = 999999
+        response = self.client.put(f'{BASE_URL}/{test_product.id}', json=test_product.serialize())
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_delete_product(self):
+        """ Test to delete a product """
+        test_product = self._create_products(1)[0]
+        response = self.client.delete(f'{BASE_URL}/{test_product.id}')
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+    def test_delete_product_wrong_id(self):
+        """ Test to delete a product with inexistent ID """
+        response = self.client.delete(f'{BASE_URL}/999999')
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_list_all_products(self):
+        """ Test to get all products """
+        self._create_products(10)
+        response = self.client.get(f'{BASE_URL}')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.get_json()), 10)
+
+    def test_list_by_name(self):
+        """ Test to get all products with the same name """
+        products = self._create_products(10)
+        name = products[0].name
+        response = self.client.get(f'{BASE_URL}', query_string=f"name={name}")
+        products_with_name = len([prod for prod in products if prod.name == name])
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.get_json()), products_with_name)
+
+    def test_list_by_category(self):
+        """ Test to get all products with the same category """
+        products = self._create_products(10)
+        category = products[0].category
+        response = self.client.get(f'{BASE_URL}', query_string=f"category={category.name}")
+        products_with_category = len([prod for prod in products if prod.category == category])
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.get_json()), products_with_category)
+
+    def test_list_by_availability(self):
+        """ Test to get all products with the same availability """
+        products = self._create_products(10)
+        availability = products[0].available
+        response = self.client.get(f'{BASE_URL}', query_string=f"available={str(availability)}")
+        products_with_availability = len([prod for prod in products if prod.available == availability])
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.get_json()), products_with_availability)
 
     ######################################################################
     # Utility functions

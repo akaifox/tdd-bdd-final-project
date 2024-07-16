@@ -27,12 +27,13 @@ import os
 import logging
 import unittest
 from decimal import Decimal
-from service.models import Product, Category, db
+from service.models import Product, Category, db, DataValidationError
 from service import app
 from tests.factories import ProductFactory
 
 DATABASE_URI = os.getenv(
-    "DATABASE_URI", "postgresql://postgres:postgres@localhost:5432/postgres"
+    "DATABASE_URI",
+    "postgresql://postgres:postgres@localhost:5432/postgres"
 )
 
 
@@ -101,6 +102,140 @@ class TestProductModel(unittest.TestCase):
         self.assertEqual(new_product.available, product.available)
         self.assertEqual(new_product.category, product.category)
 
-    #
-    # ADD YOUR TEST CASES HERE
-    #
+    def test_read_product(self):
+        """ Read product data """
+        product = ProductFactory()
+        logger = logging.getLogger(__name__)
+        logger.info(f"Created product instance: {product}")
+        product.id = None
+        product.create()
+        self.assertNotEqual(product.id, None)
+        searched_product = Product.find(product.id)
+        self.assertEqual(searched_product.name, product.name)
+        self.assertEqual(searched_product.category, product.category)
+        self.assertEqual(searched_product.available, product.available)
+        self.assertEqual(searched_product.price, product.price)
+
+    def test_update_product(self):
+        """ Update product data """
+        product = ProductFactory()
+        logger = logging.getLogger(__name__)
+        logger.info(f"Created product instance: {product}")
+        product.id = None
+        product.create()
+        self.assertNotEqual(product.id, None)
+        logger.info(f"Created product: {product}")
+        pr_id = product.id
+        product.description = "Lorem ipsum"
+        product.update()
+        self.assertEqual(product.description, "Lorem ipsum")
+        self.assertEqual(product.id, pr_id)
+        products = Product.all()
+        self.assertEqual(len(products), 1)
+        self.assertEqual(products[0].id, product.id)
+        self.assertEqual(products[0].description, product.description)
+
+    def test_delete_product(self):
+        """ Delete product from database """
+        product = ProductFactory()
+        logger = logging.getLogger(__name__)
+        logger.info(f"Created product instance: {product}")
+        product.id = None
+        product.create()
+        products = Product.all()
+        self.assertEqual(len(products), 1)
+        product.delete()
+        self.assertEqual(len(Product.all()), 0)
+
+    def test_list_all_products(self):
+        """ List all products in database """
+        products = Product.all()
+        self.assertEqual(len(products), 0)
+        for _ in range(5):
+            product = ProductFactory()
+            product.create()
+
+        products = Product.all()
+        self.assertEqual(len(products), 5)
+
+    def test_search_by_name(self):
+        """ Search product by name """
+        products = ProductFactory.create_batch(5)
+        for product in products:
+            product.create()
+
+        name = products[0].name
+        same_name_cnt = len([product for product in products if product.name == name])
+        found_products = Product.find_by_name(name)
+        self.assertEqual(found_products.count(), same_name_cnt)
+
+        for product in found_products:
+            self.assertEqual(product.name, name)
+
+    def test_search_by_category(self):
+        """ Search product by category """
+        products = ProductFactory.create_batch(10)
+        for product in products:
+            product.create()
+
+        category = products[0].category
+        same_cat_cnt = len([product for product in products if product.category == category])
+        found_products = Product.find_by_category(category)
+        self.assertEqual(found_products.count(), same_cat_cnt)
+
+        for product in found_products:
+            self.assertEqual(product.category, category)
+
+    def test_search_by_avail(self):
+        """ Search product by availability """
+        products = ProductFactory.create_batch(10)
+        for product in products:
+            product.create()
+
+        availability = products[0].available
+        same_avail_cnt = len([product for product in products if product.available == availability])
+        found_products = Product.find_by_availability(availability)
+        self.assertEqual(found_products.count(), same_avail_cnt)
+
+        for product in found_products:
+            self.assertEqual(product.available, availability)
+
+    def test_search_by_price(self):
+        """ Search product by availability """
+        products = ProductFactory.create_batch(10)
+        for product in products:
+            product.create()
+
+        price = products[0].price
+        same_price_cnt = len([product for product in products if product.price == price])
+        found_products = Product.find_by_price(str(price))
+        self.assertEqual(found_products.count(), same_price_cnt)
+
+        for product in found_products:
+            self.assertEqual(product.price, price)
+
+    def test_deserialise_wrong_avail(self):
+        """ Test deserealisation with wrong availability """
+        product = ProductFactory()
+        logger = logging.getLogger(__name__)
+        logger.info(f"Created product instance: {product}")
+        product_dict = product.serialize()
+        product_dict["available"] = "yes"
+        self.assertRaises(DataValidationError, product.deserialize, product_dict)
+
+    def test_deserialise_wrong_attr(self):
+        """ Test deserealisation with wrong attribute """
+        product = ProductFactory()
+        logger = logging.getLogger(__name__)
+        logger.info(f"Created product instance: {product}")
+        product_dict = []
+        self.assertRaises(DataValidationError, product.deserialize, product_dict)
+
+    def test_update_invalid_data(self):
+        """ Test updating with wrong id """
+        product = ProductFactory()
+        logger = logging.getLogger(__name__)
+        logger.info(f"Created product instance: {product}")
+        product.create()
+        product.id = None
+        self.assertRaises(DataValidationError, product.update)
